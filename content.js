@@ -5,7 +5,6 @@
  */
 console.log("Gmail content script (v15 - Static Selectors) loaded.");
 
-let emailProcessCount = 0;
 let emailProcessOpnedCount = 0;
 
 // ============================================================================
@@ -83,7 +82,17 @@ function getElementByXPath(xpath) {
 // ============================================================================
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === "startAutomation" && message.senders && message.days) {
-        runFullSequence(message.senders, message.days);
+        let title = document.title;
+
+// Try to extract an email pattern from it
+        let email = title.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+
+        if (email) {
+            console.log("Connected Gmail:", email[0]);
+        } else {
+            console.log("No email found in page title");
+        }
+        runFullSequence(message.senders, message.days,email[0]);
     }
 });
 
@@ -91,13 +100,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // ============================================================================
 // MASTER SEQUENCE FUNCTION
 // ============================================================================
-async function runFullSequence(senders, days) {
+async function runFullSequence(senders, days,email) {
     try {
         console.log("--- GLOBAL AUTOMATION LOOP STARTED ---");
-        emailProcessCount = 0;
+        emailProcessOpnedCount = 0;
 
         const storage = await chrome.storage.local.get('settings');
         const settings = storage.settings;
+        const data = await chrome.storage.local.get('accessToken');
+        const access_token = data.accessToken;
+
         // Only check for the CTA settings, as other selectors are now static.
         if (!settings || !settings.cta || !settings.cta.gmail) {
             throw new Error("Could not load required CTA settings from storage.");
@@ -130,7 +142,7 @@ async function runFullSequence(senders, days) {
                 continue;
             }
 
-            await processSearchResultsAndPaginate(settings);
+            await processSearchResultsAndPaginate(settings,access_token,sender,email);
             console.log(`--- Finished processing for sender ${sender}`);
             await humanLikeWait(3000, 5000);
 
@@ -202,32 +214,46 @@ async function performSearch(query) {
     console.log(`Search executed for: ${query}`);
 }
 
-async function findAndClickCTA(settings) {
-    const senderElement = document.querySelector('span.gD[name]');
-    const senderName = senderElement ? senderElement.getAttribute('name') || senderElement.textContent : 'unknown';
+async function findAndClickCTA(settings,access_token,sender_name,email) {
 
     const ctaXpaths = settings.cta.gmail;
     if (!ctaXpaths || ctaXpaths.length === 0) {
         console.log("   No CTA selectors found in settings.");
         return false;
     }
-
+    let cta_exist=false;
     for (const xpath of ctaXpaths) {
         const ctaButton = getElementByXPath(xpath);
         if (ctaButton && ctaButton.href) {
-            console.log(`   ✅ CTA Link FOUND for sender "${senderName}". URL: ${ctaButton.href}`);
-            const response = await chrome.runtime.sendMessage({ action: "openAndWait", url: ctaButton.href });
-            if (response && response.status === "success") {
-                await chrome.runtime.sendMessage({ action: "logStat", sender: senderName });
-                return true;
+            cta_exist=true
+            console.log(`   ✅ CTA Link FOUND for sender "${sender_name}". URL: ${ctaButton.href}`);
+            // open tab and wait to close it
+            try {
+                const response = await chrome.runtime.sendMessage({ action: "openAndWait", url: ctaButton.href });
+                if (response && response.status === "success") {
+                    console.log("openAndWait Done");
+                }
+            }catch (e) {
+                console.log("openAndWait failed to close automatically");
             }
         }
     }
-    console.log("   No CTA button was found.");
-    return false;
+    const response = await chrome.runtime.sendMessage({ action: "logger", access_token: access_token, sender: sender_name ,email: email });
+
+    if (response && response.status === "error") {
+        console.log(`Logger API error`);
+        throw new Error("Logger API error");
+    }
+    if(cta_exist){
+        return true
+    }else {
+        console.log("   No CTA button was found.");
+        return false;
+    }
+
 }
 
-async function processSearchResultsAndPaginate(settings) {
+async function processSearchResultsAndPaginate(settings,access_token,sender,email) {
     const firstEmailSelectors = await waitForElements('table[role="grid"] tr.zA:first-of-type');
     const firstEmail = firstEmailSelectors[firstEmailSelectors.length - 1];
     simulateHumanClick(firstEmail);
@@ -238,18 +264,14 @@ async function processSearchResultsAndPaginate(settings) {
 
     while (true) {
         await checkIfStopped();
-        console.log(`Processing email #${emailProcessCount + 1}...`);
+        console.log(`Processing email #${emailProcessOpnedCount + 1}...`);
 
         const subjectElement = document.querySelector('h2.hP');
         const currentSubject = subjectElement ? subjectElement.textContent : null;
 
         emailProcessOpnedCount++
-        const logged = await findAndClickCTA(settings);
-        if (logged) {
-            emailProcessCount++;
-        } else {
-            console.log("   No CTA found in this email, moving to the next one.");
-        }
+        await findAndClickCTA(settings,access_token,sender,email);
+
 
         //const olderButton = document.querySelector('div[role="button"][data-tooltip="Older"]');
 

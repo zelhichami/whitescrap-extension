@@ -76,14 +76,14 @@ async function fetchSettings(accessToken) {
  * @param {string} sender The sender for which the action was performed.
  * @returns {Promise<boolean>} True if the log was successful, false otherwise.
  */
-async function logStat(accessToken, sender) {
+async function logStat(accessToken, sender,email) {
     try {
         const response = await fetch(`${API_ENDPOINT}/api/logger`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: `access_token=${encodeURIComponent(accessToken)}&sender=${encodeURIComponent(sender)}&email=extension_user`
+            body: `access_token=${encodeURIComponent(accessToken)}&sender=${encodeURIComponent(sender)}&email=${encodeURIComponent(email)}`
         });
         const result = await response.json();
         return result.status === true;

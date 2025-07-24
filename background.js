@@ -48,17 +48,19 @@ const openWaitAndCloseTab = (url, sender, sendResponse) => {
  * Handles logging a statistic to the API.
  * @param {string} sender The sender name to log.
  */
-const handleLogging = async (sender) => {
-  const data = await chrome.storage.local.get('accessToken');
-  if (data.accessToken) {
-    console.log(`Logging stat for sender: ${sender}`);
-    const success = await logStat(data.accessToken, sender);
+const handleLogging = async (access_token,mysender,email, sender, sendResponse) => {
+  if (access_token) {
+    console.log(`Logging stat for sender: ${mysender}`);
+    const success = await logStat(access_token, mysender,email);
     if (success) {
       console.log("Stat logged successfully.");
+      sendResponse({ status: "success" });
     } else {
+      sendResponse({ status: "error" });
       console.error("Failed to log stat to API.");
     }
   } else {
+    sendResponse({ status: "error"});
     console.error("Cannot log stat: No access token found.");
   }
 };
@@ -71,8 +73,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // Keep message channel open for async response
   }
 
-  if (message.action === "logStat" && message.sender) {
-    handleLogging(message.sender);
-    // No response needed for logging, it's fire-and-forget
+  if (message.action === "logger") {
+    handleLogging(message.access_token ,message.sender, message.email, sender, sendResponse)
+    return true;
   }
 });
