@@ -1,0 +1,158 @@
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+    width: 280px;
+    margin: 0;
+    font-size: 14px;
+    color: #333;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    background-color: #f5f5f5;
+    border-bottom: 1px solid #ddd;
+}
+
+.header h3 {
+    margin: 0;
+    font-size: 16px;
+}
+
+#logout-button {
+    background: none;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 4px 8px;
+}
+#logout-button:hover {
+    background-color: #e0e0e0;
+}
+
+.view-content {
+    padding: 15px;
+}
+
+hr {
+    border: none;
+    border-top: 1px solid #eee;
+    margin: 15px 0;
+}
+
+/* Login Form */
+#login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+#login-form input {
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+#login-form button {
+    padding: 10px;
+    font-weight: bold;
+    color: white;
+    background-color: #4285F4;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+#login-form button:hover {
+    background-color: #3367D6;
+}
+
+.status-message {
+    text-align: center;
+    margin: 5px 0 0 0;
+    font-size: 12px;
+    color: #d93025;
+    min-height: 15px;
+}
+
+/* Form Group for Days Input */
+.form-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.form-group label {
+    flex-grow: 1;
+}
+
+#days-input {
+    width: 50px;
+    padding: 4px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    text-align: center;
+}
+
+/* Sender List */
+#sender-list-container {
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.sender-item {
+    display: block;
+    margin-bottom: 8px;
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 4px;
+}
+
+.sender-item:hover {
+    background-color: #e8f0fe;
+}
+
+.sender-item input {
+    margin-right: 8px;
+}
+
+/* Footer Buttons */
+.footer {
+    padding: 15px;
+    border-top: 1px solid #ddd;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+}
+
+.footer button {
+    width: 100%;
+    padding: 10px;
+    font-weight: bold;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+#start-button {
+    background-color: #34A853; /* Google Green */
+}
+#start-button:hover {
+    background-color: #2c8f45;
+}
+
+#stop-button.danger {
+    background-color: #d93025; /* Google Red */
+}
+#stop-button.danger:hover {
+    background-color: #c5221f;
+}
+
+button:disabled {
+    background-color: #f1f3f4 !important;
+    color: #a5a8aa !important;
+    cursor: not-allowed;
+    opacity: 0.8;
+}
