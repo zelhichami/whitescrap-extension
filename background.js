@@ -15,7 +15,7 @@ const openWaitAndCloseTab = (url, sender, sendResponse) => {
   chrome.tabs.create({
     url: url,
     index: sender.tab.index + 1,
-    active: true
+    active: false
   }).then(tab => {
     newTab = tab;
     console.log(`Opened new tab #${newTab.id}`);

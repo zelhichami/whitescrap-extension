@@ -7,7 +7,6 @@
 </head>
 <body>
 
-<!-- Login View -->
 <div id="login-view">
     <div class="header">
         <h3>Whitescrap Login</h3>
@@ -22,28 +21,48 @@
     </div>
 </div>
 
-<!-- Main Application View (hidden by default) -->
-<div id="main-view" style="display: none;">
+<div id="app-view" style="display: none;">
     <div class="header">
         <h3>Gmail whitescrap V1</h3>
         <button id="logout-button" title="Logout">Logout</button>
     </div>
-    <div class="view-content">
-        <div class="form-group">
-            <label for="days-input">emails from the last:</label>
-            <input type="number" id="days-input" value="3" min="1">
-            <span>days</span>
+
+    <div class="tab-nav">
+        <button class="tab-link active" data-tab="main">Setting</button>
+        <button class="tab-link" data-tab="log">Log</button>
+    </div>
+
+    <div class="tab-content">
+        <div id="main-tab-content" class="tab-pane active">
+            <div class="form-group">
+                <label for="days-input">Emails from the last:</label>
+                <input type="number" id="days-input" value="3" min="1">
+                <span>days</span>
+            </div>
+            <hr>
+            <div class="sender-controls">
+                <input type="text" id="sender-search" placeholder="Search senders...">
+                <label class="select-all-label">
+                    <input type="checkbox" id="select-all-checkbox">
+                    Select All
+                </label>
+            </div>
+            <div id="sender-list-container">
+            </div>
         </div>
-        <hr>
-        <div id="sender-list-container">
-            <!-- Sender checkboxes will be populated by JS -->
+
+        <div id="log-tab-content" class="tab-pane">
+            <div id="log-console">
+            </div>
         </div>
     </div>
+
     <div class="footer">
         <button id="start-button">Start Whitescrap</button>
         <button id="stop-button" class="danger">Stop Execution</button>
     </div>
 </div>
+
 
 <script src="utils.js"></script>
 <script src="popup.js"></script>

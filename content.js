@@ -3,13 +3,33 @@
  * This script combines the stable global loop logic with dynamic settings
  * for CTA links, using static selectors for core functionality.
  */
-console.log("Gmail content script (v15 - Static Selectors) loaded.");
+console.log("Gmail content script (v16 - With UI Logging) loaded.");
 
 let emailProcessOpnedCount = 0;
 
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
+async function sendLog(message, type = 'info') {
+    // Also log to console for debugging purposes
+    switch (type) {
+        case 'success':
+            console.log(`✅ ${message}`);
+            break;
+        case 'error':
+            console.error(`❌ ${message}`);
+            break;
+        case 'warn':
+            console.warn(`⚠️ ${message}`);
+            break;
+        default:
+            console.log(message);
+    }
+    // Send log to popup UI
+    chrome.runtime.sendMessage({ action: "log", data: { message, type } });
+}
+
+
 async function checkIfStopped() {
     const data = await chrome.storage.local.get('isAutomationRunning');
     if (data.isAutomationRunning === false) {
@@ -19,13 +39,13 @@ async function checkIfStopped() {
 
 // Add this new helper function to content.js
 async function waitForElements(selector, timeout = 15000) {
-    console.log(`Waiting for elements: ${selector}`);
+    //await sendLog(`Waiting for elements: ${selector}`);
     return new Promise((resolve, reject) => {
         const startTime = Date.now();
         const intervalId = setInterval(() => {
             const elements = document.querySelectorAll(selector);
             if (elements.length > 0) {
-                console.log(`Found ${elements.length} elements.`);
+                //sendLog(`Found ${elements.length} elements.`);
                 clearInterval(intervalId);
                 resolve(Array.from(elements)); // Return all found elements as a proper array
             } else if (Date.now() - startTime > timeout) {
@@ -83,16 +103,17 @@ function getElementByXPath(xpath) {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === "startAutomation" && message.senders && message.days) {
         let title = document.title;
-
-// Try to extract an email pattern from it
         let email = title.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
 
         if (email) {
-            console.log("Connected Gmail:", email[0]);
+            sendLog(`Account: ${email[0]}`,"success");
+
         } else {
-            console.log("No email found in page title");
+            sendLog("No email found in page title.", "error");
+            throw new Error("STOP_EXECUTION");
+            return false;
         }
-        runFullSequence(message.senders, message.days,email[0]);
+        runFullSequence(message.senders, message.days, email ? email[0] : 'unknown');
     }
 });
 
@@ -100,9 +121,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // ============================================================================
 // MASTER SEQUENCE FUNCTION
 // ============================================================================
-async function runFullSequence(senders, days,email) {
+async function runFullSequence(senders, days, email) {
     try {
-        console.log("--- GLOBAL AUTOMATION LOOP STARTED ---");
+        await sendLog(`\ `);
+        await sendLog("#*# Whitescrap STARTED #*#","success");
+        await sendLog(`\ `);
         emailProcessOpnedCount = 0;
 
         const storage = await chrome.storage.local.get('settings');
@@ -110,56 +133,54 @@ async function runFullSequence(senders, days,email) {
         const data = await chrome.storage.local.get('accessToken');
         const access_token = data.accessToken;
 
-        // Only check for the CTA settings, as other selectors are now static.
         if (!settings || !settings.cta || !settings.cta.gmail) {
             throw new Error("Could not load required CTA settings from storage.");
         }
-        console.log("Settings loaded successfully.");
+        //await sendLog("Settings loaded successfully.", "success");
 
-        // First, clean the spam folder
         await cleanSpamFolder(senders);
+
         for (const sender of senders) {
             const date = new Date();
             date.setDate(date.getDate() - days);
             const afterDateString = `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}`;
-
             const senderQueryPart = `from:"${sender}"`;
             const searchQuery = `in:inbox is:unread (${senderQueryPart}) after:${afterDateString}`;
 
-
             await checkIfStopped();
-            console.log("--- Starting New Search Cycle ---");
+            await sendLog(`\ `);
+            await sendLog(`--- ${sender} ---`);
 
             await performSearch(searchQuery);
             await humanLikeWait(3000, 5000);
-            // If there was no view, just wait for the new one to appear.
-            //await waitForElement('#\\\\:mc');
             await waitForElement('div.ae4[gh="tl"]');
             await humanLikeWait(3000, 5000);
-            // Using static selector for "no results" message
+
             if (document.body.innerText.includes("No messages matched your search")) {
-                console.log(`Search returned no messages for sender ${sender}`);
+                await sendLog(`No emails for sender ${sender}.`);
                 continue;
             }
 
-            await processSearchResultsAndPaginate(settings,access_token,sender,email);
-            console.log(`--- Finished processing for sender ${sender}`);
+            await processSearchResultsAndPaginate(settings, access_token, sender, email);
+            //await sendLog(`--- Finished processing for sender ${sender} ---`, "success");
             await humanLikeWait(3000, 5000);
-
         }
 
-        console.log("✅ ✅ ✅ Full sequence terminated normally!");
-        alert(`Automation Finished.\n\nTotal emails processed: ${emailProcessOpnedCount}`);
+        await sendLog("✅ Full sequence terminated normally!", "success");
+        await sendLog(`Total emails processed: ${emailProcessOpnedCount}`, "success");
+
+        // Notify popup that the process is finished
+        chrome.runtime.sendMessage({ action: "automationFinished", total: emailProcessOpnedCount });
 
     } catch (error) {
         if (error.message === "STOP_EXECUTION") {
-            console.log("🛑 Automation stopped by user command.");
+            await sendLog("🛑 Whitescrap stopped.", "warn");
         } else {
-            console.error("❌ The automation sequence FAILED:", error);
-            alert("The automation sequence failed. Check the console for details.");
+            await sendLog(`❌ The automation sequence FAILED: ${error.message}`, "error");
         }
+        chrome.runtime.sendMessage({ action: "automationFinished", error: error.message });
     } finally {
-        console.log("Resetting running state.");
+        //await sendLog("Resetting running state.");
         await chrome.storage.local.set({ isAutomationRunning: false });
     }
 }
@@ -169,16 +190,18 @@ async function runFullSequence(senders, days,email) {
 // ============================================================================
 
 async function cleanSpamFolder(senders) {
-    console.log("--- Starting Step 1: Cleaning Spam Folder ---");
+    await sendLog("--- Cleaning Spam Folder ---");
     await checkIfStopped();
 
     let spamLink = document.querySelector('a[href$="#spam"]');
     if (!spamLink) {
         const moreButton = await waitForElement('div.TK .n6 span[role="button"]');
         simulateHumanClick(moreButton);
+        //await sendLog("Clicked 'More' to find Spam folder.");
         spamLink = await waitForElement('a[href$="#spam"]');
     }
     simulateHumanClick(spamLink);
+    //await sendLog("Navigated to Spam folder.");
     await humanLikeWait(2000, 3000);
 
     const spamSearchQuery = `in:spam (${senders.map(s => `from:"${s}"`).join(' OR ')})`;
@@ -187,22 +210,22 @@ async function cleanSpamFolder(senders) {
 
     const noResultsElement = document.querySelector('td.TC');
     if (noResultsElement && (noResultsElement.textContent.includes("No messages matched your search") || noResultsElement.textContent.includes("You don't have any spam here"))) {
-        console.log("No relevant emails found in spam. Skipping cleaning.");
+        await sendLog("No relevant emails found in spam. Skipping cleaning.", "success");
     } else {
         const selectAllCheckbox = await waitForElements('span[role="checkbox"]');
         const lastCheckbox = selectAllCheckbox[selectAllCheckbox.length - 1];
         simulateHumanClick(lastCheckbox);
-
+        //await sendLog("Selected all messages in spam.");
         await humanLikeWait();
 
         const notSpamButton = await waitForElement('div[role="button"][data-tooltip="Not spam"]');
         simulateHumanClick(notSpamButton);
+        //await sendLog("Clicked 'Not spam'.");
 
         await waitForElement("div[role='alert']");
-        console.log("Successfully moved relevant spam to inbox.");
+        await sendLog("Successfully moved relevant spam to inbox.", "success");
         await humanLikeWait(1000, 1500);
     }
-
 }
 
 async function performSearch(query) {
@@ -211,89 +234,85 @@ async function performSearch(query) {
     searchBar.value = query;
     searchBar.focus();
     searchBar.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
-    console.log(`Search executed for: ${query}`);
+    //await sendLog(`Search executed for: ${query}`);
 }
 
-async function findAndClickCTA(settings,access_token,sender_name,email) {
-
+async function findAndClickCTA(settings, access_token, sender_name, email) {
     const ctaXpaths = settings.cta.gmail;
     if (!ctaXpaths || ctaXpaths.length === 0) {
-        console.log("   No CTA selectors found in settings.");
+        await sendLog("No CTA selectors found in settings.", "error");
         return false;
     }
-    let cta_exist=false;
+    let cta_exist = false;
     for (const xpath of ctaXpaths) {
         const ctaButton = getElementByXPath(xpath);
         if (ctaButton && ctaButton.href) {
-            cta_exist=true
-            console.log(`   ✅ CTA Link FOUND for sender "${sender_name}". URL: ${ctaButton.href}`);
-            // open tab and wait to close it
+            cta_exist = true;
             try {
                 const response = await chrome.runtime.sendMessage({ action: "openAndWait", url: ctaButton.href });
                 if (response && response.status === "success") {
-                    console.log("openAndWait Done");
+                    await sendLog("🟢 Link opened successfully.","success");
+                }else{
+                    await sendLog(`🛑 URL: ${ctaButton.href}`, "error");
                 }
-            }catch (e) {
-                console.log("openAndWait failed to close automatically");
+            } catch (e) {
+                await sendLog("Tab may not have closed automatically.", "warn");
             }
         }
     }
-    const response = await chrome.runtime.sendMessage({ action: "logger", access_token: access_token, sender: sender_name ,email: email });
+    const response = await chrome.runtime.sendMessage({ action: "logger", access_token: access_token, sender: sender_name, email: email });
 
     if (response && response.status === "error") {
-        console.log(`Logger API error`);
+        await sendLog("🛑 Logger API call failed.", "error");
         throw new Error("Logger API error");
     }
-    if(cta_exist){
-        return true
-    }else {
-        console.log("   No CTA button was found.");
+    if (cta_exist) {
+        return true;
+    } else {
+        await sendLog("No CTA button was found for this email.", "warn");
         return false;
     }
-
 }
 
-async function processSearchResultsAndPaginate(settings,access_token,sender,email) {
+async function processSearchResultsAndPaginate(settings, access_token, sender, email) {
     const firstEmailSelectors = await waitForElements('table[role="grid"] tr.zA:first-of-type');
     const firstEmail = firstEmailSelectors[firstEmailSelectors.length - 1];
     simulateHumanClick(firstEmail);
 
     const emailOpenIndicator = 'button[aria-label="Print all"]';
     await waitForElement(emailOpenIndicator);
+    //await sendLog("Opened the first email in the search results.");
     await humanLikeWait();
 
     while (true) {
         await checkIfStopped();
-        console.log(`Processing email #${emailProcessOpnedCount + 1}...`);
+        emailProcessOpnedCount++;
+        await sendLog(`Processing email #${emailProcessOpnedCount}...`);
 
         const subjectElement = document.querySelector('h2.hP');
-        const currentSubject = subjectElement ? subjectElement.textContent : null;
+        const currentSubject = subjectElement ? subjectElement.textContent : "No Subject";
+        await sendLog(`Subject: ${currentSubject}`);
 
-        emailProcessOpnedCount++
-        await findAndClickCTA(settings,access_token,sender,email);
-
-
-        //const olderButton = document.querySelector('div[role="button"][data-tooltip="Older"]');
+        await findAndClickCTA(settings, access_token, sender, email);
 
         const olderButtons = await waitForElements('div[role="button"][data-tooltip="Older"]');
         const olderButton = olderButtons[olderButtons.length - 1];
 
-
         if (!olderButton || olderButton.getAttribute('aria-disabled') === 'true') {
-            console.log(`Reached the last email in this batch.`);
+            //await sendLog("Reached the last email in this batch.", "warn");
             break;
         }
 
         simulateHumanClick(olderButton);
+        //await sendLog("Clicked 'Older', waiting for next email to load...");
 
-        console.log("   Clicked 'Older', waiting for next email to load...");
         await new Promise((resolve, reject) => {
             const startTime = Date.now();
             const intervalId = setInterval(() => {
                 const newSubjectElement = document.querySelector('h2.hP');
                 const newSubject = newSubjectElement ? newSubjectElement.textContent : null;
                 if (newSubject !== currentSubject) {
-                    console.log("   Next email loaded.");
+                    //sendLog("Next email loaded.", "success");
                     clearInterval(intervalId);
                     resolve();
                 } else if (Date.now() - startTime > 10000) {
