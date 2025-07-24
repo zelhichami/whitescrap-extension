@@ -3,7 +3,7 @@
  * This script combines the stable global loop logic with dynamic settings
  * for CTA links, using static selectors for core functionality.
  */
-console.log("Gmail content script (v16 - With UI Logging) loaded.");
+console.log("Whitescrap v4.0");
 
 let emailProcessOpnedCount = 0;
 
